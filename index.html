@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emulador Assembly Simplificado</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Consolas', 'Monaco', monospace;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: #fff;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            height: calc(100vh - 40px);
+        }
+
+        .panel {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            overflow-y: auto;
+        }
+
+        .header {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 10px;
+            margin-bottom: 20px;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 10px;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        h2 {
+            color: #FFD700;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+
+        h3 {
+            color: #87CEEB;
+            margin: 15px 0 10px 0;
+            font-size: 1.2em;
+        }
+
+        .controls {
+            margin-bottom: 20px;
+        }
+
+        .mode-selector {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            font-family: inherit;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+
+        button.active {
+            background: linear-gradient(45deg, #2ecc71, #27ae60);
+        }
+
+        input, textarea, select {
+            padding: 8px;
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 8px;
+            background: rgba(255,255,255,0.1);
+            color: white;
+            font-family: inherit;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+
+        input::placeholder, textarea::placeholder {
+            color: rgba(255,255,255,0.7);
+        }
+
+        .register-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .register {
+            background: rgba(255,255,255,0.15);
+            padding: 8px;
+            border-radius: 8px;
+            text-align: center;
+            border: 2px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        .register.changed {
+            border-color: #2ecc71;
+            background: rgba(46, 204, 113, 0.2);
+        }
+
+        .memory-view {
+            background: rgba(0,0,0,0.3);
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 0.9em;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .output {
+            background: rgba(0,0,0,0.3);
+            padding: 10px;
+            border-radius: 8px;
+            min-height: 150px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-size: 0.9em;
+        }
+
+        .instruction-help {
+            background: rgba(255,255,255,0.05);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .instruction-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        .instruction-table th,
+        .instruction-table td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .instruction-table th {
+            background: rgba(255,255,255,0.1);
+            font-weight: bold;
+        }
+
+        .program-area {
+            margin-bottom: 15px;
+        }
+
+        .program-area textarea {
+            height: 200px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            resize: vertical;
+        }
+
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .step-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .environment-panel {
+            background: rgba(255,255,255,0.05);
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+
+        .io-section {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .io-section > div {
+            flex: 1;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+                height: auto;
+            }
+            
+            .mode-selector {
+                flex-direction: column;
+            }
+            
+            h1 {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧠 Emulador Assembly Simplificado</h1>
+            <p>Arquitetura Customizada de 8 bits | Níveis 1-4 Implementados</p>
+        </div>
+
+        <div class="panel">
+            <h2>🔧 Controles e Programação</h2>
+            
+            <div class="controls">
+                <div class="mode-selector">
+                    <button id="mode1" class="active" onclick="setMode(1)">Nível 1: Documentação</button>
+                    <button id="mode2" onclick="setMode(2)">Nível 2: Interpretação</button>
+                    <button id="mode3" onclick="setMode(3)">Nível 3: Compilação</button>
+                    <button id="mode4" onclick="setMode(4)">Nível 4: Ambiente</button>
+                </div>
+            </div>
+
+            <div id="level1-content">
+                <div class="instruction-help">
+                    <h3>📋 Arquitetura do Processador</h3>
+                    <p><strong>Registradores:</strong> 4 registradores de propósito geral (R0-R3), Program Counter (PC), Stack Pointer (SP)</p>
+                    <p><strong>Memória:</strong> 256 posições de 8 bits cada</p>
+                    <p><strong>Formato da Instrução:</strong> 8 bits (3 bits de opcode + 5 bits de operando)</p>
+                    
+                    <table class="instruction-table">
+                        <tr><th>Opcode</th><th>Instrução</th><th>Descrição</th><th>Exemplo</th></tr>
+                        <tr><td>000</td><td>NOP</td><td>Nenhuma operação</td><td>00000000</td></tr>
+                        <tr><td>001</td><td>LOAD</td><td>Carrega valor para R0</td><td>00101010 (42)</td></tr>
+                        <tr><td>010</td><td>ADD</td><td>R0 = R0 + endereço</td><td>01001010</td></tr>
+                        <tr><td>011</td><td>SUB</td><td>R0 = R0 - endereço</td><td>01101010</td></tr>
+                        <tr><td>100</td><td>JMP</td><td>Pula para endereço</td><td>10001010</td></tr>
+                        <tr><td>101</td><td>STORE</td><td>Salva R0 no endereço</td><td>10101010</td></tr>
+                        <tr><td>110</td><td>CMP</td><td>Compara R0 com endereço</td><td>11001010</td></tr>
+                        <tr><td>111</td><td>HALT</td><td>Para execução</td><td>11100000</td></tr>
+                    </table>
+                </div>
+            </div>
+
+            <div id="level2-content" style="display:none;">
+                <h3>⌨️ Modo Interpretação</h3>
+                <input type="text" id="manual-instruction" placeholder="Digite instrução binária (8 bits)" maxlength="8">
+                <button onclick="executeManualInstruction()">Executar Instrução</button>
+            </div>
+
+            <div id="level3-content" style="display:none;">
+                <h3>📄 Modo Compilação</h3>
+                <div class="program-area">
+                    <textarea id="program-input" placeholder="Digite seu programa (uma instrução binária por linha):
+00101010  // LOAD 42
+01000001  // ADD endereço 1
+10101001  // STORE no endereço 9
+11100000  // HALT"></textarea>
+                </div>
+                <button onclick="loadProgram()">Carregar Programa</button>
+                <button onclick="runProgram()">Executar Completo</button>
+            </div>
+
+            <div id="level4-content" style="display:none;">
+                <h3>🌐 Ambiente Externo</h3>
+                <div class="environment-panel">
+                    <p>Simula interação com dispositivos externos</p>
+                    <div class="io-section">
+                        <div>
+                            <label>Entrada:</label>
+                            <input type="number" id="env-input" min="0" max="255" value="0">
+                            <button onclick="sendToEnvironment()">Enviar</button>
+                        </div>
+                        <div>
+                            <label>Saída:</label>
+                            <input type="text" id="env-output" readonly>
+                        </div>
+                    </div>
+                    <button onclick="runEnvironmentDemo()">Demo Automático</button>
+                </div>
+            </div>
+
+            <div class="step-controls">
+                <button onclick="stepExecution()">Passo a Passo</button>
+                <button onclick="resetProcessor()">Reset</button>
+                <button onclick="clearOutput()">Limpar Log</button>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2>🖥️ Estado do Processador</h2>
+            
+            <div class="status-bar">
+                <span>Status: <span id="processor-status">Parado</span></span>
+                <span>Instrução: <span id="current-instruction">-</span></span>
+            </div>
+
+            <h3>📊 Registradores</h3>
+            <div class="register-grid">
+                <div class="register" id="reg-r0">R0: <span>0</span></div>
+                <div class="register" id="reg-r1">R1: <span>0</span></div>
+                <div class="register" id="reg-r2">R2: <span>0</span></div>
+                <div class="register" id="reg-r3">R3: <span>0</span></div>
+                <div class="register" id="reg-pc">PC: <span>0</span></div>
+                <div class="register" id="reg-sp">SP: <span>255</span></div>
+            </div>
+
+            <h3>🧠 Memória (primeiras 32 posições)</h3>
+            <div class="memory-view" id="memory-display"></div>
+
+            <h3>📝 Log de Execução</h3>
+            <div class="output" id="execution-log"></div>
+        </div>
+    </div>
+
+    <script>
+        // Arquitetura do Processador
+        class SimpleProcessor {
+            constructor() {
+                this.registers = {
+                    R0: 0, R1: 0, R2: 0, R3: 0,
+                    PC: 0, SP: 255
+                };
+                this.memory = new Array(256).fill(0);
+                this.flags = { zero: false, carry: false };
+                this.running = false;
+                this.halted = false;
+                this.changedRegisters = new Set();
+                this.environment = { input: 0, output: 0 };
+            }
+
+            // Decodifica instrução binária
+            decode(instruction) {
+                const opcode = (instruction >> 5) & 0x07; // 3 bits mais significativos
+                const operand = instruction & 0x1F;       // 5 bits menos significativos
+                return { opcode, operand };
+            }
+
+            // Executa uma instrução
+            execute(instruction) {
+                const { opcode, operand } = this.decode(instruction);
+                this.changedRegisters.clear();
+
+                switch (opcode) {
+                    case 0: // NOP
+                        this.log(`NOP - Nenhuma operação`);
+                        break;
+                    
+                    case 1: // LOAD
+                        this.registers.R0 = operand;
+                        this.changedRegisters.add('R0');
+                        this.log(`LOAD ${operand} -> R0`);
+                        break;
+                    
+                    case 2: // ADD
+                        const addValue = this.memory[operand] || 0;
+                        this.registers.R0 = (this.registers.R0 + addValue) & 0xFF;
+                        this.changedRegisters.add('R0');
+                        this.log(`ADD mem[${operand}](${addValue}) -> R0 = ${this.registers.R0}`);
+                        break;
+                    
+                    case 3: // SUB
+                        const subValue = this.memory[operand] || 0;
+                        this.registers.R0 = Math.max(0, this.registers.R0 - subValue);
+                        this.changedRegisters.add('R0');
+                        this.log(`SUB mem[${operand}](${subValue}) -> R0 = ${this.registers.R0}`);
+                        break;
+                    
+                    case 4: // JMP
+                        this.registers.PC = operand;
+                        this.changedRegisters.add('PC');
+                        this.log(`JMP -> PC = ${operand}`);
+                        return; // Não incrementa PC
+                    
+                    case 5: // STORE
+                        this.memory[operand] = this.registers.R0;
+                        this.log(`STORE R0(${this.registers.R0}) -> mem[${operand}]`);
+                        break;
+                    
+                    case 6: // CMP
+                        const cmpValue = this.memory[operand] || 0;
+                        this.flags.zero = (this.registers.R0 === cmpValue);
+                        this.log(`CMP R0(${this.registers.R0}) com mem[${operand}](${cmpValue}) -> Zero: ${this.flags.zero}`);
+                        break;
+                    
+                    case 7: // HALT
+                        this.halted = true;
+                        this.running = false;
+                        this.log(`HALT - Execução parada`);
+                        break;
+                    
+                    default:
+                        this.log(`Instrução inválida: ${instruction.toString(2).padStart(8, '0')}`);
+                }
+
+                // Incrementa PC se não foi JMP
+                if (opcode !== 4) {
+                    this.registers.PC++;
+                    this.changedRegisters.add('PC');
+                }
+            }
+
+            // Carrega programa na memória
+            loadProgram(program) {
+                for (let i = 0; i < program.length && i < 256; i++) {
+                    this.memory[i] = program[i];
+                }
+                this.registers.PC = 0;
+                this.log(`Programa carregado: ${program.length} instruções`);
+            }
+
+            // Executa próxima instrução
+            step() {
+                if (this.halted || this.registers.PC >= 256) {
+                    this.running = false;
+                    return false;
+                }
+
+                const instruction = this.memory[this.registers.PC];
+                this.execute(instruction);
+                return !this.halted;
+            }
+
+            // Executa programa completo
+            run() {
+                this.running = true;
+                this.halted = false;
+                let steps = 0;
+                const maxSteps = 1000; // Previne loops infinitos
+
+                while (this.running && steps < maxSteps) {
+                    if (!this.step()) break;
+                    steps++;
+                }
+
+                if (steps >= maxSteps) {
+                    this.log("⚠️ Execução interrompida - muitos passos");
+                }
+            }
+
+            // Reset do processador
+            reset() {
+                this.registers = { R0: 0, R1: 0, R2: 0, R3: 0, PC: 0, SP: 255 };
+                this.memory.fill(0);
+                this.flags = { zero: false, carry: false };
+                this.running = false;
+                this.halted = false;
+                this.changedRegisters.clear();
+                this.log("🔄 Processador resetado");
+            }
+
+            // Log de operações
+            log(message) {
+                const logElement = document.getElementById('execution-log');
+                const timestamp = new Date().toLocaleTimeString();
+                logElement.innerHTML += `[${timestamp}] ${message}\n`;
+                logElement.scrollTop = logElement.scrollHeight;
+            }
+
+            // Interação com ambiente externo
+            environmentInteraction() {
+                // Simula leitura de entrada externa
+                if (this.registers.R0 === 254) { // Comando especial para ler entrada
+                    this.registers.R0 = this.environment.input;
+                    this.log(`🌐 Lendo entrada externa: ${this.environment.input}`);
+                }
+                
+                // Simula escrita para saída externa
+                if (this.registers.R0 === 253) { // Comando especial para escrever saída
+                    this.environment.output = this.registers.R1;
+                    document.getElementById('env-output').value = this.environment.output;
+                    this.log(`🌐 Escrevendo saída externa: ${this.environment.output}`);
+                }
+            }
+        }
+
+        // Instância global do processador
+        const processor = new SimpleProcessor();
+        let currentMode = 1;
+
+        // Funções de Interface
+        function setMode(mode) {
+            currentMode = mode;
+            
+            // Remove classe active de todos os botões
+            document.querySelectorAll('.mode-selector button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Adiciona classe active ao botão selecionado
+            document.getElementById(`mode${mode}`).classList.add('active');
+            
+            // Esconde todos os conteúdos
+            ['level1-content', 'level2-content', 'level3-content', 'level4-content'].forEach(id => {
+                document.getElementById(id).style.display = 'none';
+            });
+            
+            // Mostra conteúdo do nível selecionado
+            document.getElementById(`level${mode}-content`).style.display = 'block';
+            
+            updateDisplay();
+        }
+
+        function executeManualInstruction() {
+            const input = document.getElementById('manual-instruction').value;
+            if (input.length !== 8 || !/^[01]+$/.test(input)) {
+                alert('Digite exatamente 8 dígitos binários (0 ou 1)');
+                return;
+            }
+            
+            const instruction = parseInt(input, 2);
+            processor.execute(instruction);
+            document.getElementById('manual-instruction').value = '';
+            updateDisplay();
+        }
+
+        function loadProgram() {
+            const input = document.getElementById('program-input').value;
+            const lines = input.split('\n').filter(line => line.trim());
+            const program = [];
+            
+            for (let line of lines) {
+                const cleaned = line.split('//')[0].trim(); // Remove comentários
+                if (cleaned && /^[01]{8}$/.test(cleaned)) {
+                    program.push(parseInt(cleaned, 2));
+                }
+            }
+            
+            if (program.length === 0) {
+                alert('Nenhuma instrução válida encontrada');
+                return;
+            }
+            
+            processor.loadProgram(program);
+            updateDisplay();
+        }
+
+        function runProgram() {
+            processor.run();
+            updateDisplay();
+        }
+
+        function stepExecution() {
+            processor.step();
+            updateDisplay();
+        }
+
+        function resetProcessor() {
+            processor.reset();
+            updateDisplay();
+        }
+
+        function clearOutput() {
+            document.getElementById('execution-log').innerHTML = '';
+        }
+
+        function sendToEnvironment() {
+            const value = parseInt(document.getElementById('env-input').value) || 0;
+            processor.environment.input = value;
+            processor.log(`🌐 Entrada externa definida: ${value}`);
+        }
+
+        function runEnvironmentDemo() {
+            // Programa de demonstração que interage com ambiente externo
+            const demoProgram = [
+                parseInt('00111110', 2), // LOAD 254 (comando para ler entrada)
+                parseInt('10100001', 2), // STORE na posição 1
+                parseInt('00101010', 2), // LOAD 10
+                parseInt('01000001', 2), // ADD mem[1] (soma entrada + 10)
+                parseInt('00111111', 2), // LOAD 253 (comando para escrever saída) 
+                parseInt('11100000', 2)  // HALT
+            ];
+            
+            processor.loadProgram(demoProgram);
+            processor.run();
+            updateDisplay();
+        }
+
+        function updateDisplay() {
+            // Atualiza status
+            const status = processor.halted ? 'Parado' : (processor.running ? 'Executando' : 'Pronto');
+            document.getElementById('processor-status').textContent = status;
+            
+            // Atualiza instrução atual
+            const currentInst = processor.memory[processor.registers.PC];
+            document.getElementById('current-instruction').textContent = 
+                currentInst.toString(2).padStart(8, '0');
+            
+            // Atualiza registradores
+            Object.keys(processor.registers).forEach(reg => {
+                const element = document.getElementById(`reg-${reg.toLowerCase()}`);
+                const span = element.querySelector('span');
+                span.textContent = processor.registers[reg];
+                
+                // Destaca registradores alterados
+                if (processor.changedRegisters.has(reg)) {
+                    element.classList.add('changed');
+                    setTimeout(() => element.classList.remove('changed'), 2000);
+                }
+            });
+            
+            // Atualiza visualização da memória
+            let memoryHtml = '';
+            for (let i = 0; i < 32; i++) {
+                const value = processor.memory[i];
+                const binary = value.toString(2).padStart(8, '0');
+                const isPC = (i === processor.registers.PC);
+                memoryHtml += `<span style="${isPC ? 'background: rgba(255,215,0,0.3); font-weight: bold;' : ''}">${i.toString().padStart(3, '0')}: ${value.toString().padStart(3, ' ')} (${binary})</span>\n`;
+            }
+            document.getElementById('memory-display').innerHTML = memoryHtml;
+        }
+
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', function() {
+            updateDisplay();
+            processor.log('🚀 Emulador Assembly inicializado');
+            processor.log('📚 Selecione um nível para começar');
+        });
+
+        // Permite Enter para executar instrução manual
+        document.getElementById('manual-instruction')?.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                executeManualInstruction();
+            }
+        });
+    </script>
+</body>
+</html>
