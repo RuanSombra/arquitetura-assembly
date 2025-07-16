@@ -219,6 +219,16 @@
             flex: 1;
         }
 
+        .error {
+            color: #ff6b6b;
+            font-weight: bold;
+        }
+
+        .success {
+            color: #2ecc71;
+            font-weight: bold;
+        }
+
         @media (max-width: 768px) {
             .container {
                 grid-template-columns: 1fr;
@@ -260,16 +270,17 @@
                     <p><strong>Registradores:</strong> 4 registradores de propósito geral (R0-R3), Program Counter (PC), Stack Pointer (SP)</p>
                     <p><strong>Memória:</strong> 256 posições de 8 bits cada</p>
                     <p><strong>Formato da Instrução:</strong> 8 bits (3 bits de opcode + 5 bits de operando)</p>
+                    <p><strong>Comandos Especiais:</strong> 254 (ler entrada), 255 (escrever saída)</p>
                     
                     <table class="instruction-table">
                         <tr><th>Opcode</th><th>Instrução</th><th>Descrição</th><th>Exemplo</th></tr>
                         <tr><td>000</td><td>NOP</td><td>Nenhuma operação</td><td>00000000</td></tr>
-                        <tr><td>001</td><td>LOAD</td><td>Carrega valor para R0</td><td>00101010 (42)</td></tr>
-                        <tr><td>010</td><td>ADD</td><td>R0 = R0 + endereço</td><td>01001010</td></tr>
-                        <tr><td>011</td><td>SUB</td><td>R0 = R0 - endereço</td><td>01101010</td></tr>
+                        <tr><td>001</td><td>LOAD</td><td>Carrega valor/endereço para R0</td><td>00101010 (42)</td></tr>
+                        <tr><td>010</td><td>ADD</td><td>R0 = R0 + mem[endereço]</td><td>01001010</td></tr>
+                        <tr><td>011</td><td>SUB</td><td>R0 = R0 - mem[endereço]</td><td>01101010</td></tr>
                         <tr><td>100</td><td>JMP</td><td>Pula para endereço</td><td>10001010</td></tr>
                         <tr><td>101</td><td>STORE</td><td>Salva R0 no endereço</td><td>10101010</td></tr>
-                        <tr><td>110</td><td>CMP</td><td>Compara R0 com endereço</td><td>11001010</td></tr>
+                        <tr><td>110</td><td>CMP</td><td>Compara R0 com mem[endereço]</td><td>11001010</td></tr>
                         <tr><td>111</td><td>HALT</td><td>Para execução</td><td>11100000</td></tr>
                     </table>
                 </div>
@@ -279,15 +290,18 @@
                 <h3>⌨️ Modo Interpretação</h3>
                 <input type="text" id="manual-instruction" placeholder="Digite instrução binária (8 bits)" maxlength="8">
                 <button onclick="executeManualInstruction()">Executar Instrução</button>
+                <div id="decode-info" style="margin-top: 10px; padding: 10px; background: rgba(255,255,255,0.1); border-radius: 5px;"></div>
             </div>
 
             <div id="level3-content" style="display:none;">
                 <h3>📄 Modo Compilação</h3>
                 <div class="program-area">
                     <textarea id="program-input" placeholder="Digite seu programa (uma instrução binária por linha):
-00101010  // LOAD 42
-01000001  // ADD endereço 1
-10101001  // STORE no endereço 9
+00111110  // LOAD 254 - Comando para ler entrada externa
+10100001  // STORE 1 - Salva entrada na posição 1
+01000001  // ADD mem[1] - Soma entrada consigo mesma (dobra)
+00000001  // Move resultado para R1 (simulação)
+00111111  // LOAD 255 - Comando para escrever saída
 11100000  // HALT"></textarea>
                 </div>
                 <button onclick="loadProgram()">Carregar Programa</button>
@@ -301,7 +315,7 @@
                     <div class="io-section">
                         <div>
                             <label>Entrada:</label>
-                            <input type="number" id="env-input" min="0" max="255" value="0">
+                            <input type="number" id="env-input" min="0" max="255" value="7">
                             <button onclick="sendToEnvironment()">Enviar</button>
                         </div>
                         <div>
@@ -380,9 +394,19 @@
                         break;
                     
                     case 1: // LOAD
-                        this.registers.R0 = operand;
+                        // Verifica comandos especiais
+                        if (operand === 30) { // 254 & 0x1F = 30
+                            this.registers.R0 = this.environment.input;
+                            this.log(`LOAD ${operand} - Carrega entrada externa (${this.environment.input}) -> R0`);
+                        } else if (operand === 31) { // 255 & 0x1F = 31
+                            this.environment.output = this.registers.R0;
+                            document.getElementById('env-output').value = this.environment.output;
+                            this.log(`LOAD ${operand} - Escreve saída externa: ${this.environment.output}`);
+                        } else {
+                            this.registers.R0 = operand;
+                            this.log(`LOAD ${operand} -> R0`);
+                        }
                         this.changedRegisters.add('R0');
-                        this.log(`LOAD ${operand} -> R0`);
                         break;
                     
                     case 2: // ADD
@@ -423,7 +447,7 @@
                         break;
                     
                     default:
-                        this.log(`Instrução inválida: ${instruction.toString(2).padStart(8, '0')}`);
+                        this.log(`<span class="error">Instrução inválida: ${instruction.toString(2).padStart(8, '0')}</span>`);
                 }
 
                 // Incrementa PC se não foi JMP
@@ -435,11 +459,12 @@
 
             // Carrega programa na memória
             loadProgram(program) {
+                this.reset();
                 for (let i = 0; i < program.length && i < 256; i++) {
                     this.memory[i] = program[i];
                 }
                 this.registers.PC = 0;
-                this.log(`Programa carregado: ${program.length} instruções`);
+                this.log(`<span class="success">Programa carregado: ${program.length} instruções</span>`);
             }
 
             // Executa próxima instrução
@@ -450,6 +475,13 @@
                 }
 
                 const instruction = this.memory[this.registers.PC];
+                if (instruction === 0 && this.registers.PC > 0) {
+                    this.log(`<span class="error">Instrução NOP ou fim do programa na posição ${this.registers.PC}</span>`);
+                    this.halted = true;
+                    this.running = false;
+                    return false;
+                }
+
                 this.execute(instruction);
                 return !this.halted;
             }
@@ -467,7 +499,7 @@
                 }
 
                 if (steps >= maxSteps) {
-                    this.log("⚠️ Execução interrompida - muitos passos");
+                    this.log(`<span class="error">⚠️ Execução interrompida - muitos passos (${steps})</span>`);
                 }
             }
 
@@ -479,31 +511,29 @@
                 this.running = false;
                 this.halted = false;
                 this.changedRegisters.clear();
-                this.log("🔄 Processador resetado");
+                this.log(`<span class="success">🔄 Processador resetado</span>`);
             }
 
             // Log de operações
             log(message) {
                 const logElement = document.getElementById('execution-log');
                 const timestamp = new Date().toLocaleTimeString();
-                logElement.innerHTML += `[${timestamp}] ${message}\n`;
+                logElement.innerHTML += `[${timestamp}] ${message}<br>`;
                 logElement.scrollTop = logElement.scrollHeight;
             }
 
-            // Interação com ambiente externo
-            environmentInteraction() {
-                // Simula leitura de entrada externa
-                if (this.registers.R0 === 254) { // Comando especial para ler entrada
-                    this.registers.R0 = this.environment.input;
-                    this.log(`🌐 Lendo entrada externa: ${this.environment.input}`);
-                }
+            // Decodifica instrução para exibição
+            decodeInstruction(instruction) {
+                const { opcode, operand } = this.decode(instruction);
+                const opcodes = ['NOP', 'LOAD', 'ADD', 'SUB', 'JMP', 'STORE', 'CMP', 'HALT'];
+                const opName = opcodes[opcode] || 'INVALID';
                 
-                // Simula escrita para saída externa
-                if (this.registers.R0 === 253) { // Comando especial para escrever saída
-                    this.environment.output = this.registers.R1;
-                    document.getElementById('env-output').value = this.environment.output;
-                    this.log(`🌐 Escrevendo saída externa: ${this.environment.output}`);
-                }
+                let description = `${opName}`;
+                if (opcode === 1 && operand === 30) description += ' 254 (ler entrada)';
+                else if (opcode === 1 && operand === 31) description += ' 255 (escrever saída)';
+                else if (opcode !== 0 && opcode !== 7) description += ` ${operand}`;
+                
+                return description;
             }
         }
 
@@ -542,6 +572,9 @@
             }
             
             const instruction = parseInt(input, 2);
+            const decoded = processor.decodeInstruction(instruction);
+            document.getElementById('decode-info').innerHTML = `Instrução: ${decoded}`;
+            
             processor.execute(instruction);
             document.getElementById('manual-instruction').value = '';
             updateDisplay();
@@ -590,17 +623,17 @@
         function sendToEnvironment() {
             const value = parseInt(document.getElementById('env-input').value) || 0;
             processor.environment.input = value;
-            processor.log(`🌐 Entrada externa definida: ${value}`);
+            processor.log(`<span class="success">🌐 Entrada externa definida: ${value}</span>`);
         }
 
         function runEnvironmentDemo() {
-            // Programa de demonstração que interage com ambiente externo
+            // Programa correto que interage com ambiente externo
             const demoProgram = [
                 parseInt('00111110', 2), // LOAD 254 (comando para ler entrada)
                 parseInt('10100001', 2), // STORE na posição 1
-                parseInt('00101010', 2), // LOAD 10
-                parseInt('01000001', 2), // ADD mem[1] (soma entrada + 10)
-                parseInt('00111111', 2), // LOAD 253 (comando para escrever saída) 
+                parseInt('01000001', 2), // ADD mem[1] (soma entrada consigo mesma)
+                parseInt('00000001', 2), // NOP (placeholder para move para R1)
+                parseInt('00111111', 2), // LOAD 255 (comando para escrever saída)
                 parseInt('11100000', 2)  // HALT
             ];
             
@@ -616,8 +649,9 @@
             
             // Atualiza instrução atual
             const currentInst = processor.memory[processor.registers.PC];
-            document.getElementById('current-instruction').textContent = 
-                currentInst.toString(2).padStart(8, '0');
+            const binaryInst = currentInst.toString(2).padStart(8, '0');
+            const decodedInst = processor.decodeInstruction(currentInst);
+            document.getElementById('current-instruction').textContent = `${binaryInst} (${decodedInst})`;
             
             // Atualiza registradores
             Object.keys(processor.registers).forEach(reg => {
@@ -638,7 +672,8 @@
                 const value = processor.memory[i];
                 const binary = value.toString(2).padStart(8, '0');
                 const isPC = (i === processor.registers.PC);
-                memoryHtml += `<span style="${isPC ? 'background: rgba(255,215,0,0.3); font-weight: bold;' : ''}">${i.toString().padStart(3, '0')}: ${value.toString().padStart(3, ' ')} (${binary})</span>\n`;
+                const hasData = value !== 0;
+                memoryHtml += `<span style="${isPC ? 'background: rgba(255,215,0,0.3); font-weight: bold;' : hasData ? 'background: rgba(46,204,113,0.2);' : ''}">${i.toString().padStart(3, '0')}: ${value.toString().padStart(3, ' ')} (${binary})</span>\n`;
             }
             document.getElementById('memory-display').innerHTML = memoryHtml;
         }
@@ -646,7 +681,7 @@
         // Inicialização
         document.addEventListener('DOMContentLoaded', function() {
             updateDisplay();
-            processor.log('🚀 Emulador Assembly inicializado');
+            processor.log('<span class="success">🚀 Emulador Assembly inicializado</span>');
             processor.log('📚 Selecione um nível para começar');
         });
 
